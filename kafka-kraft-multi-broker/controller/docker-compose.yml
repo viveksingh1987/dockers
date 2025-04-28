@@ -1,0 +1,101 @@
+version: "3.9"
+
+x-common-env: &common-controller-env
+    CLUSTER_ID: "${CLUSTER_ID}"
+    KAFKA_PROCESS_ROLES: "controller"
+    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_INTER_BROKER_LISTENER_NAME: "BROKER"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT"
+    KAFKA_CONTROLLER_QUORUM_VOTERS: "1001@${CONTROLLER_SERVER}:29091,1002@${CONTROLLER_SERVER}:29092,1003@${CONTROLLER_SERVER}:29093"
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
+    KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: ${KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS}
+    KAFKA_LOG_RETENTION_HOURS: ${KAFKA_LOG_RETENTION_HOURS}
+    KAFKA_MESSAGE_MAX_BYTES: ${KAFKA_MESSAGE_MAX_BYTES} 
+    KAFKA_MAX_REQUEST_SIZE: ${KAFKA_MAX_REQUEST_SIZE}
+    CONFLUENT_SUPPORT_METRICS_ENABLE: "false"
+    KAFKA_LOG4J_LOGGERS: "kafka.cluster=WARN,kafka.controller=WARN,kafka.coordinator=WARN,kafka.log=WARN,kafka.server=WARN,kafka.zookeeper=WARN,state.change.logger=WARN"
+    KAFKA_LOG4J_ROOT_LOGLEVEL: "WARN"
+    KAFKA_TOOLS_LOG4J_LOGLEVEL: "WARN"
+    KAFKA_LOG_DIRS: "/var/lib/kafka/metadata"
+    JMX_PORT: 9101
+
+# https://docs.confluent.io/platform/current/installation/configuration/broker-configs.html#cp-config-brokers
+# docker run -it --rm confluentinc/cp-kafka:7.8.0 kafka-storage random-uuid
+
+
+services:
+  controller1:
+    image: "confluentinc/cp-kafka:7.8.0"
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: ${OPEN_FILE_LIMIT}
+        hard: ${OPEN_FILE_LIMIT}
+    container_name: kafka-controller1
+    environment:
+      <<: *common-controller-env
+      KAFKA_NODE_ID: "1001"
+      KAFKA_LISTENERS: "CONTROLLER://0.0.0.0:29091" #only listerner should be controller listerner
+    ports:
+      - "29091:29091" #expose if other controllers are on different server. 
+    volumes:
+      - "controller1:/var/lib/kafka" #can use a bind mount or external service if named volumes not suitable.
+    healthcheck:
+      test: [ "CMD-SHELL", "sh", "-c", "nc -z localhost 29091" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  controller2:
+    image: "confluentinc/cp-kafka:7.8.0"
+    restart: unless-stopped
+    ulimits:
+        nofile:
+          soft: ${OPEN_FILE_LIMIT}
+          hard: ${OPEN_FILE_LIMIT}
+    container_name: kafka-controller2
+    environment:
+      <<: *common-controller-env
+      KAFKA_NODE_ID: "1002"
+      KAFKA_LISTENERS: "CONTROLLER://0.0.0.0:29092"
+    ports:
+      - "29092:29092"
+    volumes:
+      - "controller2:/var/lib/kafka"
+    depends_on:
+      - controller1
+    healthcheck:
+      test: [ "CMD-SHELL", "sh", "-c", "nc -z localhost 29092" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    
+  controller3:
+    image: "confluentinc/cp-kafka:7.8.0"
+    container_name: kafka-controller3
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: ${OPEN_FILE_LIMIT}
+        hard: ${OPEN_FILE_LIMIT}
+    environment:
+      <<: *common-controller-env
+      KAFKA_NODE_ID: "1003"
+      KAFKA_LISTENERS: "CONTROLLER://0.0.0.0:29093"
+    ports:
+      - "29093:29093"
+    volumes:
+      - "controller3:/var/lib/kafka"
+    healthcheck:
+      test: [ "CMD-SHELL", "sh", "-c", "nc -z localhost 29093" ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    depends_on:
+      - controller1
+      - controller2
+volumes:
+  controller1:
+  controller2:
+  controller3:
+      
