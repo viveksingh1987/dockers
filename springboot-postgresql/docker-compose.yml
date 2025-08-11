@@ -1,0 +1,45 @@
+services:
+  postgres-db:
+    image: postgres:14-alpine
+    container_name: bank-account-db
+    restart: always
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: $PG_DB_NAME
+      POSTGRES_USER: $PG_DB_USERNAME
+      POSTGRES_PASSWORD: $PG_DB_PASSWORD
+    ports:
+      - $PG_DB_LOCAL_PORT:$PG_DB_DOCKER_PORT
+
+  postgres-admin:
+    image: dpage/pgadmin4
+    container_name: db-admin
+    depends_on:
+      - postgres-db
+    env_file:
+      - ./.env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: $PGADMIN_USERNAME
+      PGADMIN_DEFAULT_PASSWORD: $PGADMIN_PASSWORD
+    ports:
+      - $PGADMIN_LOCAL_PORT:$PGADMIN_DOCKER_PORT
+
+  account-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bank-app
+    stdin_open: true
+    tty: true
+    depends_on:
+      - postgres-db
+    env_file:
+      - ./.env
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    ports:
+      - $APP_LOCAL_PORT:$APP_DOCKER_PORT
+
+
+
